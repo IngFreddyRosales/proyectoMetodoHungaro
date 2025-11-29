@@ -80,6 +80,31 @@ loadExampleBtn.addEventListener('click', () => {
     }
 });
 
+// Animation controls
+document.addEventListener('DOMContentLoaded', () => {
+    // Animation trigger button (will be created after optimization)
+    document.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'animate-btn') {
+            startSequentialAnimation();
+        }
+    });
+    
+    // Animation control buttons
+    const playBtn = document.getElementById('play-animation-btn');
+    const pauseBtn = document.getElementById('pause-animation-btn');
+    const stopBtn = document.getElementById('stop-animation-btn');
+    const speedSelect = document.getElementById('animation-speed');
+    
+    if (playBtn) playBtn.addEventListener('click', resumeAnimation);
+    if (pauseBtn) pauseBtn.addEventListener('click', pauseAnimation);
+    if (stopBtn) stopBtn.addEventListener('click', stopAnimation);
+    if (speedSelect) {
+        speedSelect.addEventListener('change', (e) => {
+            setAnimationSpeed(parseInt(e.target.value));
+        });
+    }
+});
+
 // Functions
 function setMode(mode) {
     state.mode = mode;
@@ -233,8 +258,9 @@ async function runOptimization() {
         );
         document.getElementById('cost-matrix-panel').classList.remove('hidden');
         
-        // Visualize solution
-        visualizeSolution(solution);
+        // Visualize solution (now with real routes)
+        console.log('Dibujando rutas en el mapa...');
+        await visualizeSolution(solution);
         
         // Show results
         showResults(solution);
@@ -248,7 +274,7 @@ async function runOptimization() {
     }
 }
 
-function visualizeSolution(solution) {
+async function visualizeSolution(solution) {
     // Clear old layers
     if (state.layers.mst) {
         state.layers.mst.forEach(layer => map.removeLayer(layer));
@@ -260,10 +286,30 @@ function visualizeSolution(solution) {
     const mstLayers = [];
     const assignmentLayers = [];
     
-    // Draw MST edges (green solid lines)
-    solution.phase1.edges.forEach(edge => {
+    console.log('Obteniendo rutas reales para MST...');
+    
+    // Guardar las rutas OSRM del MST para usar en animación
+    solution.phase1.edgeRoutes = [];
+    
+    // Draw MST edges (green solid lines) following real streets
+    for (const edge of solution.phase1.edges) {
+        // Get real route from OSRM for this MST edge
+        const routeData = await fetchTruckRoute(
+            { lat: edge.from.lat, lng: edge.from.lng },
+            { lat: edge.to.lat, lng: edge.to.lng }
+        );
+        
+        // Guardar ruta con información de nodos
+        solution.phase1.edgeRoutes.push({
+            from: edge.from,
+            to: edge.to,
+            coordinates: routeData.coordinates,
+            distance: routeData.distance
+        });
+        
+        // Draw polyline following streets
         const line = L.polyline(
-            [[edge.from.lat, edge.from.lng], [edge.to.lat, edge.to.lng]],
+            routeData.coordinates,
             { 
                 color: '#10b981', 
                 weight: 4, 
@@ -271,28 +317,46 @@ function visualizeSolution(solution) {
             }
         ).addTo(map);
         
-        line.bindPopup(`Red MST: ${edge.cost.toFixed(2)} km`);
+        const from = edge.from.type === 'hub' ? 'Hub' : `Silo #${edge.from.id}`;
+        const to = edge.to.type === 'hub' ? 'Hub' : `Silo #${edge.to.id}`;
+        line.bindPopup(`Red MST: ${from} → ${to}<br>${edge.cost.toFixed(2)} km`);
         mstLayers.push(line);
-    });
+        
+        // Small delay to avoid overwhelming OSRM
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
     
-    // Draw assignment edges (blue dashed lines)
-    solution.phase2.assignment.forEach(a => {
+    console.log('Obteniendo rutas reales para asignaciones...');
+    
+    // Draw assignment edges (blue dashed lines) following real streets
+    for (const a of solution.phase2.assignment) {
+        // Get real route from OSRM for assignment
+        const routeData = await fetchTruckRoute(
+            { lat: a.truck.lat, lng: a.truck.lng },
+            { lat: a.silo.lat, lng: a.silo.lng }
+        );
+        
+        // Draw polyline following streets (dashed)
         const line = L.polyline(
-            [[a.truck.lat, a.truck.lng], [a.silo.lat, a.silo.lng]],
+            routeData.coordinates,
             { 
                 color: '#3b82f6', 
-                weight: 3, 
-                opacity: 0.6,
-                dashArray: '10, 10'
+                weight: 5,  // Aumentado de 3 a 5
+                opacity: 0.75,  // Aumentado de 0.6 a 0.75
+                dashArray: '15, 10'  // Mayor contraste: líneas más largas, espacios más cortos
             }
         ).addTo(map);
         
         line.bindPopup(`Camión #${a.truck.id} → Silo #${a.silo.id}: ${a.cost.toFixed(2)} km`);
         assignmentLayers.push(line);
-    });
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
     
     state.layers.mst = mstLayers;
     state.layers.assignments = assignmentLayers;
+    
+    console.log('✅ Visualización completa con rutas reales');
 }
 
 function showResults(solution) {

@@ -118,39 +118,42 @@ function calculateAssignmentCost(assignment, costMatrix) {
 }
 
 /**
- * Calcula asignación ingenua (cada camión al silo más cercano)
- * No garantiza asignación 1-1 global óptima
+ * Calcula asignación ingenua (greedy: cada par más cercano disponible)
+ * Usa la misma matriz de costos que el Húngaro para comparación justa
+ * @param {Array} costMatrix - Matriz de costos NxN
+ * @returns {Object} - {assignment: Array, totalCost: number}
  */
-function naiveAssignment(trucks, silos) {
-    const assignment = [];
+function naiveAssignment(costMatrix) {
+    const n = costMatrix.length;
+    const assignment = new Array(n).fill(-1);
     const usedSilos = new Set();
     let totalCost = 0;
     
-    // Crear pares (camión, silo, distancia)
+    // Crear pares (camión, silo, costo) de la matriz
     const pairs = [];
-    for (let i = 0; i < trucks.length; i++) {
-        for (let j = 0; j < silos.length; j++) {
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
             pairs.push({
                 truck: i,
                 silo: j,
-                distance: euclideanDistance(trucks[i], silos[j])
+                cost: costMatrix[i][j]
             });
         }
     }
     
-    // Ordenar por distancia
-    pairs.sort((a, b) => a.distance - b.distance);
+    // Ordenar por costo (greedy: tomar siempre el más barato disponible)
+    pairs.sort((a, b) => a.cost - b.cost);
     
     // Asignar greedily
     const assigned = new Set();
     for (const pair of pairs) {
         if (!assigned.has(pair.truck) && !usedSilos.has(pair.silo)) {
             assignment[pair.truck] = pair.silo;
-            totalCost += pair.distance;
+            totalCost += pair.cost;
             assigned.add(pair.truck);
             usedSilos.add(pair.silo);
             
-            if (assigned.size === trucks.length) break;
+            if (assigned.size === n) break;
         }
     }
     

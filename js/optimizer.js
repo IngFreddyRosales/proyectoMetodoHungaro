@@ -60,8 +60,8 @@ async function optimizeTwoStage(hub, silos, trucks, useOSRM = true) {
     const optimalCost = calculateAssignmentCost(optimalAssignment, costMatrix);
     console.log(`Asignación óptima, Costo: ${optimalCost.toFixed(2)} km`);
     
-    // BASELINE: Asignación ingenua para comparación
-    const naiveResult = naiveAssignment(trucks, routeStarts);
+    // BASELINE: Asignación ingenua para comparación (usando la MISMA matriz de costos)
+    const naiveResult = naiveAssignment(costMatrix);
     console.log(`Asignación ingenua, Costo: ${naiveResult.totalCost.toFixed(2)} km`);
     
     // Calcular métricas

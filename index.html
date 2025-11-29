@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimizador MST + Húngaro - Logística Agrícola</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style-mst.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <header>
+                <h1>🌾 RutaOptima</h1>
+                <p>Optimización MST + Húngaro</p>
+            </header>
+            
+            <div class="controls">
+                <div class="mode-selector">
+                    <h3>Modo de Entrada</h3>
+                    <div class="mode-buttons">
+                        <button id="mode-hub" class="mode-btn active" data-mode="hub">
+                            🏭 Hub
+                        </button>
+                        <button id="mode-silos" class="mode-btn" data-mode="silos">
+                            🌾 Silos
+                        </button>
+                        <button id="mode-trucks" class="mode-btn" data-mode="trucks">
+                            🚚 Camiones
+                        </button>
+                    </div>
+                </div>
+
+                <div class="examples-section">
+                    <h3>Ejemplos Pre-cargados</h3>
+                    <select id="example-select" class="example-select">
+                        <option value="">-- Seleccionar Escenario --</option>
+                        <option value="small">Pequeño (3 Silos)</option>
+                        <option value="medium">Mediano (5 Silos)</option>
+                        <option value="large">Grande (8 Silos)</option>
+                        <option value="asymmetric">Asimétrico (Prueba)</option>
+                    </select>
+                    <button id="load-example-btn" class="btn-example" disabled>
+                        📂 Cargar Ejemplo
+                    </button>
+                </div>
+
+                <div id="status-panel" class="status-panel">
+                    <div class="status-item">
+                        <span class="status-label">Hub:</span>
+                        <span id="hub-status">❌ No establecido</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Silos:</span>
+                        <span id="silos-status">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Camiones:</span>
+                        <span id="trucks-status">0</span>
+                    </div>
+                </div>
+
+                <div id="instructions" class="instructions">
+                    Haz clic en el mapa para colocar el HUB (Centro de Acopio)
+                </div>
+                
+                <div id="items-list" class="items-list"></div>
+
+                <div class="action-buttons">
+                    <button id="optimize-btn" class="btn-primary" disabled>
+                        ⚡ Optimizar Red + Asignación
+                    </button>
+                    <button id="clear-btn" class="btn-secondary">
+                        🗑️ Limpiar Todo
+                    </button>
+                </div>
+            </div>
+            
+            <div id="cost-matrix-panel" class="cost-matrix-panel hidden">
+                <h3>📊 Matriz de Costos (Método Húngaro)</h3>
+                <div class="matrix-info">
+                    Distancias de cada camión a cada silo (km)
+                </div>
+                <div id="cost-matrix-container" class="cost-matrix-container"></div>
+            </div>
+            
+            <div id="results" class="results-panel hidden">
+                <h3>📊 Resultados</h3>
+                
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Red de Recolección (MST)</div>
+                        <div class="metric-value" id="mst-cost">-- km</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Posicionamiento (Húngaro)</div>
+                        <div class="metric-value" id="hungarian-cost">-- km</div>
+                    </div>
+                    
+                    <div class="metric-card highlight">
+                        <div class="metric-label">Costo Total Optimizado</div>
+                        <div class="metric-value" id="total-optimized">-- km</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-label">Baseline (Ingenuo)</div>
+                        <div class="metric-value" id="total-baseline">-- km</div>
+                    </div>
+                    
+                    <div class="metric-card success">
+                        <div class="metric-label">💰 Ahorros</div>
+                        <div class="metric-value" id="savings">-- km (---%)</div>
+                    </div>
+                </div>
+
+                <div id="assignment-details" class="assignment-details"></div>
+            </div>
+        </aside>
+
+        <main class="map-container">
+            <div id="map"></div>
+            <div class="map-legend">
+                <div class="legend-item">
+                    <span class="legend-marker" style="background: #dc2626;">🏭</span>
+                    Hub (Centro)
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background: #2563eb;">🌾</span>
+                    Silos
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background: #f97316;">🚚</span>
+                    Camiones
+                </div>
+                <div class="legend-item">
+                    <span class="legend-line mst-line"></span>
+                    Red MST
+                </div>
+                <div class="legend-item">
+                    <span class="legend-line assignment-line"></span>
+                    Asignación
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Algorithms -->
+    <script src="js/mst.js"></script>
+    <script src="js/hungarian.js"></script>
+    <script src="js/osrm.js"></script>
+    <script src="js/optimizer.js"></script>
+    <script src="js/examples.js"></script>
+    <!-- App Logic -->
+    <script src="js/app-mst.js"></script>
+</body>
+</html>
